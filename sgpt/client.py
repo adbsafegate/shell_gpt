@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 from typing import Dict, Generator, List
 
-import requests
+import openai
 
 from .cache import Cache
 from .config import cfg
@@ -11,20 +11,22 @@ CACHE_LENGTH = int(cfg.get("CACHE_LENGTH"))
 CACHE_PATH = Path(cfg.get("CACHE_PATH"))
 REQUEST_TIMEOUT = int(cfg.get("REQUEST_TIMEOUT"))
 DISABLE_STREAMING = str(cfg.get("DISABLE_STREAMING"))
+openai.api_type = "azure"
+openai.api_version = cfg.get("AZURE_API_VERSION")
 
 
 class OpenAIClient:
     cache = Cache(CACHE_LENGTH, CACHE_PATH)
 
     def __init__(self, api_host: str, api_key: str) -> None:
-        self.__api_key = api_key
-        self.api_host = api_host
+        openai.api_base = api_host
+        openai.api_key = api_key
 
     @cache
     def _request(
         self,
         messages: List[Dict[str, str]],
-        model: str = "gpt-3.5-turbo",
+        model: str = "gpt-35-turbo",
         temperature: float = 1,
         top_probability: float = 1,
     ) -> Generator[str, None, None]:
@@ -39,39 +41,25 @@ class OpenAIClient:
         :return: Response body JSON.
         """
         stream = DISABLE_STREAMING == "false"
-        data = {
-            "messages": messages,
-            "model": model,
-            "temperature": temperature,
-            "top_p": top_probability,
-            "stream": stream,
-        }
-        endpoint = f"{self.api_host}/v1/chat/completions"
-        response = requests.post(
-            endpoint,
-            # Hide API key from Rich traceback.
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {self.__api_key}",
-            },
-            json=data,
-            timeout=REQUEST_TIMEOUT,
-            stream=stream,
+        response = openai.ChatCompletion.create(
+            engine=model,
+            messages=messages,
+            temperature=temperature,
+            top_p=top_probability,
+            stream=True
+
         )
-        response.raise_for_status()
-        # TODO: Optimise.
-        # https://github.com/openai/openai-python/blob/237448dc072a2c062698da3f9f512fae38300c1c/openai/api_requestor.py#L98
+
         if not stream:
-            data = response.json()
+            data = response
             yield data["choices"][0]["message"]["content"]  # type: ignore
             return
-        for line in response.iter_lines():
-            data = line.lstrip(b"data: ").decode("utf-8")
+        for line in response:
+            data = line
             if data == "[DONE]":  # type: ignore
                 break
             if not data:
                 continue
-            data = json.loads(data)  # type: ignore
             delta = data["choices"][0]["delta"]  # type: ignore
             if "content" not in delta:
                 continue

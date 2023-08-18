@@ -1,11 +1,23 @@
 import os
 import platform
 import shlex
+from enum import Enum
 from tempfile import NamedTemporaryFile
 from typing import Any, Callable
 
 import typer
 from click import BadParameter
+
+
+class ModelOptions(str, Enum):
+    """
+    Model endpoint compatibility
+    https://platform.openai.com/docs/models/model-endpoint-compatibility
+    """
+
+    GPT4 = "gpt-4"
+    GPT432k = "gpt-4-32k"
+    GPT35TURBO = "gpt-35-turbo"
 
 
 def get_edited_prompt() -> str:

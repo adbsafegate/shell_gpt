@@ -1,3 +1,10 @@
+"""
+This module provides a simple interface for OpenAI API using Typer
+as the command line interface. It supports different modes of output including
+shell commands and code, and allows users to specify the desired OpenAI model
+and length and other options of the output. Additionally, it supports executing
+shell commands directly from the interface.
+"""
 # To allow users to use arrow keys in the REPL.
 import readline  # noqa: F401
 import sys
@@ -11,7 +18,12 @@ from sgpt.handlers.chat_handler import ChatHandler
 from sgpt.handlers.default_handler import DefaultHandler
 from sgpt.handlers.repl_handler import ReplHandler
 from sgpt.role import DefaultRoles, SystemRole
-from sgpt.utils import get_edited_prompt, install_shell_integration, run_command
+from sgpt.utils import (
+    ModelOptions,
+    get_edited_prompt,
+    install_shell_integration,
+    run_command,
+)
 
 
 def main(
@@ -20,9 +32,9 @@ def main(
         show_default=False,
         help="The prompt to generate completions for.",
     ),
-    model: str = typer.Option(
-        cfg.get("DEFAULT_MODEL"),
-        help="Large language model to use.",
+    model: ModelOptions = typer.Option(
+        ModelOptions(cfg.get("DEFAULT_MODEL")).value,
+        help="OpenAI GPT model to use.",
     ),
     temperature: float = typer.Option(
         0.1,
@@ -147,7 +159,7 @@ def main(
         # Will be in infinite loop here until user exits with Ctrl+C.
         ReplHandler(repl, role_class).handle(
             prompt,
-            model=model,
+            model=model.value,
             temperature=temperature,
             top_probability=top_probability,
             chat_id=repl,
@@ -157,7 +169,7 @@ def main(
     if chat:
         full_completion = ChatHandler(chat, role_class).handle(
             prompt,
-            model=model,
+            model=model.value,
             temperature=temperature,
             top_probability=top_probability,
             chat_id=chat,
@@ -166,7 +178,7 @@ def main(
     else:
         full_completion = DefaultHandler(role_class).handle(
             prompt,
-            model=model,
+            model=model.value,
             temperature=temperature,
             top_probability=top_probability,
             caching=cache,
@@ -186,7 +198,7 @@ def main(
         elif option == "d":
             DefaultHandler(DefaultRoles.DESCRIBE_SHELL.get_role()).handle(
                 full_completion,
-                model=model,
+                model=model.value,
                 temperature=temperature,
                 top_probability=top_probability,
                 caching=cache,
